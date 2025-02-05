@@ -12,6 +12,7 @@
         :root {
             --grid-columns: 4;
             --card-aspect: calc(16 / 9);
+            --max-width: 100%;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -32,13 +33,21 @@
             font-family: system-ui, -apple-system, sans-serif;
             margin: 0;
             padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
         }
 
         #dropZone {
             display: grid;
-            grid-template-columns: repeat(var(--grid-columns), 1fr);
+            grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr));
             gap: 1rem;
             padding: 1rem;
+            max-width: var(--max-width);
+            width: 100%;
+            box-sizing: border-box;
+            justify-content: center;
         }
 
         .site-card {
@@ -58,33 +67,6 @@
         .site-card:hover {
             transform: scale(1.02);
             background: rgba(255, 255, 255, 0.15);
-        }
-
-        .remove-btn {
-            position: absolute;
-            top: 0.5rem;
-            right: 0.5rem;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: rgba(255, 0, 0, 0.2);
-            color: inherit;
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .site-card:hover .remove-btn {
-            opacity: 1;
-        }
-
-        .remove-btn:hover {
-            background: rgba(255, 0, 0, 0.4);
         }
 
         .site-icon {
@@ -111,22 +93,17 @@
             right: 1rem;
             display: flex;
             gap: 0.5rem;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 0.5rem;
+            border-radius: 8px;
         }
 
-        button {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.1);
-            color: inherit;
-            cursor: pointer;
+        #widthSlider {
+            width: 100px;
         }
 
-        button:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        button.active {
+        .active {
             background: rgba(255, 255, 255, 0.3);
         }
     </style>
@@ -137,89 +114,41 @@
         <button id="grid8">8×N</button>
         <button id="grid16">16×N</button>
         <button id="clearAll">Clear All</button>
+        <input type="range" id="widthSlider" min="10" max="100" value="100">
     </div>
     <div id="dropZone"></div>
 
     <script>
         const dropZone = document.getElementById('dropZone');
-        const clearAllBtn = document.getElementById('clearAll');
-        const gridBtns = {
+        const widthSlider = document.getElementById('widthSlider');
+        const gridButtons = {
             4: document.getElementById('grid4'),
             8: document.getElementById('grid8'),
             16: document.getElementById('grid16')
         };
 
-        // Load saved sites and grid preference from localStorage
-        let sites = JSON.parse(localStorage.getItem('sites') || '[]');
-        let gridColumns = parseInt(localStorage.getItem('gridColumns') || '4');
+        widthSlider.addEventListener('input', (e) => {
+            const maxWidth = e.target.value + '%';
+            document.documentElement.style.setProperty('--max-width', maxWidth);
+        });
 
-        // Initialize grid
-        setGridColumns(gridColumns);
-        renderSites();
-
-        // Handle grid button clicks
-        Object.entries(gridBtns).forEach(([columns, btn]) => {
-            btn.addEventListener('click', () => {
+        Object.entries(gridButtons).forEach(([columns, button]) => {
+            button.addEventListener('click', () => {
                 setGridColumns(parseInt(columns));
             });
         });
 
         function setGridColumns(columns) {
-            gridColumns = columns;
             document.documentElement.style.setProperty('--grid-columns', columns);
-
-
-            // Update button states
-            Object.entries(gridBtns).forEach(([col, btn]) => {
+            Object.entries(gridButtons).forEach(([col, btn]) => {
                 btn.classList.toggle('active', parseInt(col) === columns);
             });
-
-            // Save preference
-            localStorage.setItem('gridColumns', columns);
         }
 
-        // Handle drag and drop
-        document.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
-
-        document.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const url = e.dataTransfer.getData('text');
-            if (!url) return;
-
-            try {
-                const urlObj = new URL(url);
-                const domain = urlObj.hostname;
-                const faviconUrl = `https://${domain}/favicon.ico`;
-
-
-                // Add new site
-                sites.push({
-                    url: url,
-                    title: domain,
-                    icon: faviconUrl
-                });
-
-                // Save and render
-                localStorage.setItem('sites', JSON.stringify(sites));
-                renderSites();
-            } catch (error) {
-                console.error('Error processing URL:', error);
-            }
-        });
-
-        function removeSite(index, event) {
-            event.stopPropagation(); // Prevent card click when removing
-            sites.splice(index, 1);
-            localStorage.setItem('sites', JSON.stringify(sites));
-            renderSites();
-        }
-
+        let sites = JSON.parse(localStorage.getItem('sites') || '[]');
         function renderSites() {
             dropZone.innerHTML = sites.map((site, index) => `
                 <div class="site-card" onclick="window.open('${site.url}', '_blank')">
-                    <button class="remove-btn" onclick="removeSite(${index}, event)">×</button>
                     <img class="site-icon" src="${site.icon}" alt="Icon"
                          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>'">
                     <p class="site-title">${site.title}</p>
@@ -227,13 +156,7 @@
             `).join('');
         }
 
-        clearAllBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to clear all sites?')) {
-                sites = [];
-                localStorage.setItem('sites', JSON.stringify(sites));
-                renderSites();
-            }
-        });
+        renderSites();
     </script>
 </body>
 </html>
