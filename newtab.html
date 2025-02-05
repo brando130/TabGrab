@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Tab</title>
+    <meta name="author" content="Brandon Anderson">
+    <meta name="copyright" content="Brandon Anderson 2025">
+    <meta name="license" content="MIT">
+    <meta name="description" content="TabGrab - a simple new tab page.">
+    <style>
+        :root {
+            --grid-columns: 4;
+            --card-aspect: calc(16 / 9);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #1a1a1a;
+                color: #ffffff;
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            body {
+                background: #ffffff;
+                color: #1a1a1a;
+            }
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 2rem;
+        }
+
+        #dropZone {
+            display: grid;
+            grid-template-columns: repeat(var(--grid-columns), 1fr);
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .site-card {
+            position: relative;
+            aspect-ratio: var(--card-aspect);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .site-card:hover {
+            transform: scale(1.02);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(255, 0, 0, 0.2);
+            color: inherit;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .site-card:hover .remove-btn {
+            opacity: 1;
+        }
+
+        .remove-btn:hover {
+            background: rgba(255, 0, 0, 0.4);
+        }
+
+        .site-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 1rem;
+        }
+
+        .site-title {
+            text-align: center;
+            font-size: 0.9rem;
+            margin: 0;
+            max-width: 90%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        #controls {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: inherit;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        button.active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button id="grid4" class="active">4×N</button>
+        <button id="grid8">8×N</button>
+        <button id="grid16">16×N</button>
+        <button id="clearAll">Clear All</button>
+    </div>
+    <div id="dropZone"></div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const clearAllBtn = document.getElementById('clearAll');
+        const gridBtns = {
+            4: document.getElementById('grid4'),
+            8: document.getElementById('grid8'),
+            16: document.getElementById('grid16')
+        };
+
+        // Load saved sites and grid preference from localStorage
+        let sites = JSON.parse(localStorage.getItem('sites') || '[]');
+        let gridColumns = parseInt(localStorage.getItem('gridColumns') || '4');
+
+        // Initialize grid
+        setGridColumns(gridColumns);
+        renderSites();
+
+        // Handle grid button clicks
+        Object.entries(gridBtns).forEach(([columns, btn]) => {
+            btn.addEventListener('click', () => {
+                setGridColumns(parseInt(columns));
+            });
+        });
+
+        function setGridColumns(columns) {
+            gridColumns = columns;
+            document.documentElement.style.setProperty('--grid-columns', columns);
+
+
+            // Update button states
+            Object.entries(gridBtns).forEach(([col, btn]) => {
+                btn.classList.toggle('active', parseInt(col) === columns);
+            });
+
+            // Save preference
+            localStorage.setItem('gridColumns', columns);
+        }
+
+        // Handle drag and drop
+        document.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const url = e.dataTransfer.getData('text');
+            if (!url) return;
+
+            try {
+                const urlObj = new URL(url);
+                const domain = urlObj.hostname;
+                const faviconUrl = `https://${domain}/favicon.ico`;
+
+
+                // Add new site
+                sites.push({
+                    url: url,
+                    title: domain,
+                    icon: faviconUrl
+                });
+
+                // Save and render
+                localStorage.setItem('sites', JSON.stringify(sites));
+                renderSites();
+            } catch (error) {
+                console.error('Error processing URL:', error);
+            }
+        });
+
+        function removeSite(index, event) {
+            event.stopPropagation(); // Prevent card click when removing
+            sites.splice(index, 1);
+            localStorage.setItem('sites', JSON.stringify(sites));
+            renderSites();
+        }
+
+        function renderSites() {
+            dropZone.innerHTML = sites.map((site, index) => `
+                <div class="site-card" onclick="window.open('${site.url}', '_blank')">
+                    <button class="remove-btn" onclick="removeSite(${index}, event)">×</button>
+                    <img class="site-icon" src="${site.icon}" alt="Icon"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>'">
+                    <p class="site-title">${site.title}</p>
+                </div>
+            `).join('');
+        }
+
+        clearAllBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all sites?')) {
+                sites = [];
+                localStorage.setItem('sites', JSON.stringify(sites));
+                renderSites();
+            }
+        });
+    </script>
+</body>
+</html>
